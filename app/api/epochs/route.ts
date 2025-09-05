@@ -32,14 +32,33 @@ export async function GET(){
   const pageSize = 1000;
   const all: any[] = [];
   let from = 0;
+  let colset: any[] | null = null;
   for (;;) {
-    const { data: rows, error } = await supabase
-      .from('comprehensive_analytics')
-      .select('epoch,end_block,timestamp,total_stake_raw,operator_count,operator_0_stake_tokens,operator_1_stake_tokens,operator_2_stake_tokens,operator_3_stake_tokens,operator_0_rewards_tokens,operator_1_rewards_tokens,operator_2_rewards_tokens,operator_3_rewards_tokens,operator_0_shares_raw,operator_1_shares_raw,operator_2_shares_raw,operator_3_shares_raw')
-      .order('epoch', { ascending: true })
-      .range(from, from + pageSize - 1);
+    let rows: any[] | null = null;
+    let error: any = null;
+    try {
+      const res = await supabase
+        .from('comprehensive_analytics')
+        .select('epoch,end_block,timestamp,total_stake_raw,operator_count,operator_0_stake_tokens,operator_1_stake_tokens,operator_2_stake_tokens,operator_3_stake_tokens,operator_0_rewards_tokens,operator_1_rewards_tokens,operator_2_rewards_tokens,operator_3_rewards_tokens,operator_0_shares_raw,operator_1_shares_raw,operator_2_shares_raw,operator_3_shares_raw')
+        .order('epoch', { ascending: true })
+        .range(from, from + pageSize - 1);
+      rows = res.data as any[] | null;
+      error = res.error;
+      colset = rows && rows[0] ? Object.keys(rows[0]) : colset;
+    } catch {}
+    // Fallback to '*' if column list fails (older view schema)
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'content-type': 'application/json' } });
+      const res2 = await supabase
+        .from('comprehensive_analytics')
+        .select('*')
+        .order('epoch', { ascending: true })
+        .range(from, from + pageSize - 1);
+      rows = res2.data as any[] | null;
+      error = res2.error;
+      colset = rows && rows[0] ? Object.keys(rows[0]) : colset;
+    }
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message || String(error) }), { status: 500, headers: { 'content-type': 'application/json' } });
     }
     if (!rows || rows.length === 0) break;
     all.push(...rows);
@@ -53,9 +72,24 @@ export async function GET(){
     const rewards: Record<string, string> = {};
     const sharePrices: Record<string, string> = {};
 
-    const stakeTokens = [r.operator_0_stake_tokens, r.operator_1_stake_tokens, r.operator_2_stake_tokens, r.operator_3_stake_tokens];
-    const rewardsTokens = [r.operator_0_rewards_tokens, r.operator_1_rewards_tokens, r.operator_2_rewards_tokens, r.operator_3_rewards_tokens];
-    const sharesRaw = [r.operator_0_shares_raw, r.operator_1_shares_raw, r.operator_2_shares_raw, r.operator_3_shares_raw];
+    const stakeTokens = [
+      (r as any).operator_0_stake_tokens ?? (r as any).operator_0_stake ?? 0,
+      (r as any).operator_1_stake_tokens ?? (r as any).operator_1_stake ?? 0,
+      (r as any).operator_2_stake_tokens ?? (r as any).operator_2_stake ?? 0,
+      (r as any).operator_3_stake_tokens ?? (r as any).operator_3_stake ?? 0
+    ];
+    const rewardsTokens = [
+      (r as any).operator_0_rewards_tokens ?? (r as any).operator_0_rewards ?? 0,
+      (r as any).operator_1_rewards_tokens ?? (r as any).operator_1_rewards ?? 0,
+      (r as any).operator_2_rewards_tokens ?? (r as any).operator_2_rewards ?? 0,
+      (r as any).operator_3_rewards_tokens ?? (r as any).operator_3_rewards ?? 0
+    ];
+    const sharesRaw = [
+      (r as any).operator_0_shares_raw ?? 0,
+      (r as any).operator_1_shares_raw ?? 0,
+      (r as any).operator_2_shares_raw ?? 0,
+      (r as any).operator_3_shares_raw ?? 0
+    ];
 
     for (let i = 0; i < 4; i++) {
       const id = String(i);
@@ -80,7 +114,7 @@ export async function GET(){
       endBlock: r.end_block,
       endHash: undefined,
       timestamp: r.timestamp,
-      totalStake: toStringSafe(r.total_stake_raw),
+      totalStake: toStringSafe((r as any).total_stake_raw ?? (r as any).total_stake ?? 0),
       operatorStakes: stakes,
       rewards: rewards,
       operatorSharePrices: sharePrices,
