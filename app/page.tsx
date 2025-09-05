@@ -2,14 +2,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, Bar, Brush } from 'recharts';
 
-function useEpochs(){
+function useEpochs(limit: '50' | '100' | '200' | 'All' = '100'){
   const [data, setData] = useState<any[]>([]);
   useEffect(() => {
-    fetch('/api/epochs')
+    const qp = limit === 'All' ? 'all' : limit;
+    fetch(`/api/epochs?limit=${encodeURIComponent(String(qp))}`)
       .then(r => r.json())
       .then((rows) => Array.isArray(rows) ? setData(rows) : setData([]))
       .catch(()=>setData([]));
-  }, []);
+  }, [limit]);
   return data;
 }
 
@@ -217,6 +218,20 @@ class ChartErrorBoundary extends React.Component<{ children: React.ReactNode }, 
   }
 }
 
+function LiveAgo({ lastLiveAt }: { lastLiveAt: number }){
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const secs = Math.max(0, Math.floor(((now - lastLiveAt) / 1000)));
+  return (
+    <span style={{ fontSize: '11px', color: '#6b7280', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif' }}>
+      {secs}s ago
+    </span>
+  );
+}
+
 function DashboardHeader({ isLive, liveStatus, lastLiveAt, setIsLive, setLiveStatus, onDownloadCSV, isMobile }: { 
   isLive: boolean; 
   liveStatus: 'idle' | 'connecting' | 'live' | 'error'; 
@@ -303,11 +318,7 @@ function DashboardHeader({ isLive, liveStatus, lastLiveAt, setIsLive, setLiveSta
           >
             Live {isLive ? 'On' : 'Off'}
           </button>
-          {isLive && lastLiveAt && (
-            <span style={{ fontSize: '11px', color: '#6b7280', fontFamily }}>
-              {Math.max(0, Math.floor(((Date.now() - lastLiveAt) / 1000)))}s ago
-            </span>
-          )}
+          {isLive && lastLiveAt && (<LiveAgo lastLiveAt={lastLiveAt} />)}
         </div>
         
         {/* Download CSV */}
@@ -376,9 +387,11 @@ function DomainSummary({ summary, isMobile }: { summary: any; isMobile: boolean 
           <div style={{ fontSize: isMobile ? 11 : 12, color: '#64748b', marginTop: 4, fontFamily }}>Last updated</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: isMobile ? 12 : 13, color: '#64748b', fontWeight: 500, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily }}>Total Stake</div>
+          <div style={{ fontSize: isMobile ? 12 : 13, color: '#64748b', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily }}>Total Stake</div>
           <div style={{ fontSize: isMobile ? 28 : 32, fontWeight: 700, color: '#111827', lineHeight: 1.1, fontFamily, textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>{summary.totalStake}</div>
-          <div style={{ fontSize: isMobile ? 11 : 12, color: '#64748b', marginTop: 4, fontFamily }}>AI3</div>
+          <div style={{ fontSize: isMobile ? 10 : 11, color: '#6b7280', marginTop: 4, fontFamily }}>incl. storage fees: {summary.storageFees}
+            <span style={{ color: '#94a3b8' }}> (≈25%)</span>
+          </div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: isMobile ? 12 : 13, color: '#64748b', fontWeight: 500, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily }}>Latest Rewards</div>
@@ -410,7 +423,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }){
   );
 }
 
-function OperatorTable({ rows, latest, isMobile, showOp0, showOp1, setShowOp0, setShowOp1 }: { rows: any[]; latest: any; isMobile: boolean; showOp0: boolean; showOp1: boolean; setShowOp0: (v: boolean)=>void; setShowOp1: (v: boolean)=>void }){
+function OperatorTable({ rows, latest, isMobile }: { rows: any[]; latest: any; isMobile: boolean }){
   const opIds = (latest.latestSharePrices || []).map((r: any) => r.id);
   // Compute common prefix across all visible decimals
   const decimals: string[] = (latest.latestSharePrices || []).map((x: any) => String(x.decimal || ''));
@@ -429,6 +442,14 @@ function OperatorTable({ rows, latest, isMobile, showOp0, showOp1, setShowOp0, s
 
   const fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif';
   const monoFamily = '"JetBrains Mono", "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+  
+  const COLORS = {
+    total: '#111827',
+    op0: '#60A5FA',
+    op1: '#F59E0B',
+    op2: '#10B981',
+    op3: '#EF4444'
+  } as const;
   
   return (
     <div style={{ 
@@ -451,8 +472,8 @@ function OperatorTable({ rows, latest, isMobile, showOp0, showOp1, setShowOp0, s
       <div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(300px, 1fr))', gap: isMobile ? 12 : 16 }}>
           {(opIds as any[]).map((id: any) => {
-            const color = Number(id) % 2 === 0 ? '#60A5FA' : '#F59E0B';
-            const colorBg = Number(id) % 2 === 0 ? '#EFF6FF' : '#FEF3C7';
+            const color = id === '0' ? COLORS.op0 : id === '1' ? COLORS.op1 : id === '2' ? COLORS.op2 : COLORS.op3;
+            const colorBg = id === '0' ? '#EFF6FF' : id === '1' ? '#FEF3C7' : id === '2' ? '#ECFDF5' : '#FEE2E2';
             const stakes = rows[rows.length - 1]?.operatorStakes || {};
             const rewards = rows[rows.length - 1]?.rewards || {};
             const stakeStr = formatTokensIntegerFromShannons(stakes[id] || '0');
@@ -460,7 +481,7 @@ function OperatorTable({ rows, latest, isMobile, showOp0, showOp1, setShowOp0, s
             const valueStr = String((latest.latestSharePrices || []).find((x: any)=>x.id===id)?.decimal || '');
             const prefix = valueStr.startsWith(commonPrefix) ? commonPrefix : '';
             const suffix = valueStr.slice(prefix.length);
-            const isChecked = String(id) === '0' ? showOp0 : showOp1;
+            const isChecked = true;
             
             return (
               <div key={id} style={{ 
@@ -503,30 +524,7 @@ function OperatorTable({ rows, latest, isMobile, showOp0, showOp1, setShowOp0, s
                   </div>
                   
                   {/* Show/Hide Toggle */}
-                  <label style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: 4, 
-                    fontSize: isMobile ? 11 : 12, 
-                    padding: '4px 8px', 
-                    borderRadius: '6px', 
-                    background: isChecked ? colorBg : '#f8fafc', 
-                    color: isChecked ? color : '#64748b',
-                    border: `1px solid ${isChecked ? color : '#e2e8f0'}`, 
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    fontWeight: 500,
-                    fontFamily
-                  }}>
-                    <input 
-                      type="checkbox" 
-                      checked={isChecked} 
-                      onChange={(e)=> (String(id)==='0' ? setShowOp0(e.target.checked) : setShowOp1(e.target.checked))} 
-                      style={{ display: 'none' }} 
-                    />
-                    <span style={{ fontSize: '10px' }}>{isChecked ? '✓' : '+'}</span>
-                    <span>Show in Charts</span>
-                  </label>
+                  
                 </div>
 
                 {/* Stats Grid */}
@@ -644,13 +642,29 @@ function OperatorTable({ rows, latest, isMobile, showOp0, showOp1, setShowOp0, s
 }
 
 export default function Dashboard(){
-  const rows = useEpochs();
+  const [range, setRange] = useState<'50' | '100' | '200' | 'All'>('50');
+  const rows = useEpochs(range);
+  const [allCache, setAllCache] = useState<any[] | null>(null);
 
   const [isLive, setIsLive] = useState(false);
   const [liveStatus, setLiveStatus] = useState<'idle' | 'connecting' | 'live' | 'error'>('idle');
   const [liveRow, setLiveRow] = useState<any | null>(null);
+  const [liveBuffer, setLiveBuffer] = useState<any[]>([]);
   const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
-  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    // Prefetch all epochs in the background for instant switch later (sample to 1000 points)
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/epochs?limit=all&sample=1000');
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data)) setAllCache(data);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // removed unused tick that caused heartbeat re-renders when live was on
 
   function mapToObj(m: any){
     if (!m) return {} as Record<string, string>;
@@ -685,14 +699,17 @@ export default function Dashboard(){
     let unsub: any;
     let apiRef: any = null;
     let disconnected = false;
-    setLiveStatus('connecting');
-    (async () => {
+    let attempt = 0;
+    const MAX_DELAY = 30000; // 30s cap
+    const connect = async () => {
+      setLiveStatus('connecting');
       try {
         const mod = await import('@autonomys/auto-utils');
         const api = await (mod as any).activate({ rpcUrl: 'wss://rpc.mainnet.subspace.foundation/ws' } as any);
         apiRef = api;
         if (disconnected) { try { await api.disconnect(); } catch {} return; }
         setLiveStatus('live');
+        attempt = 0; // reset backoff on success
         unsub = await (api as any).rpc.chain.subscribeNewHeads(async (header: any) => {
           try {
             const blockNumber = header.number.toNumber();
@@ -706,7 +723,10 @@ export default function Dashboard(){
             const totalStake = (s.currentTotalStake ?? s.totalStake)?.toString?.() ?? null;
             const operatorStakes = mapToObj(s.currentOperators);
             const rewards = mapToObj(s.currentEpochRewards);
-            setLiveRow({
+            // storage fee fallback: estimate at ~25% of total stake when not available
+            let storageFees: string | null = null;
+            try { if (totalStake) storageFees = (BigInt(totalStake) / BigInt(4)).toString(); } catch {}
+            const row = {
               domainId: 0,
               epoch,
               startBlock: undefined,
@@ -714,16 +734,34 @@ export default function Dashboard(){
               startHash: undefined,
               endHash: hash.toString(),
               totalStake,
+              storageFees,
               operatorStakes,
               rewards
+            } as any;
+            setLiveRow(row);
+            setLiveBuffer(prev => {
+              if (!prev.length) return [row];
+              const last = prev[prev.length - 1];
+              if (last && last.epoch === row.epoch) {
+                const cp = prev.slice();
+                cp[cp.length - 1] = { ...last, ...row };
+                return cp;
+              }
+              const merged = [...prev, row];
+              const LIMIT = 5;
+              return merged.slice(-LIMIT);
             });
             setLastLiveAt(Date.now());
           } catch {}
         });
       } catch (e) {
         setLiveStatus('error');
+        attempt += 1;
+        const delay = Math.min(MAX_DELAY, 1000 * Math.pow(2, attempt));
+        if (!disconnected) setTimeout(connect, delay);
       }
-    })();
+    };
+    connect();
     return () => {
       disconnected = true;
       try { if (typeof unsub === 'function') unsub(); } catch {}
@@ -731,25 +769,20 @@ export default function Dashboard(){
     };
   }, [isLive]);
 
-  useEffect(() => {
-    if (!isLive) return;
-    const id = setInterval(() => setTick(x => x + 1), 1000);
-    return () => clearInterval(id);
-  }, [isLive]);
+  // No global 1s ticker; LiveAgo handles its own timer to avoid chart heartbeat
 
   const mergedRows = useMemo(() => {
     const base = Array.isArray(rows) ? rows.slice() : [];
-    if (!liveRow) return base;
-    const last = base[base.length - 1];
-    if (!last) return [liveRow];
-    if (liveRow.epoch > last.epoch) return [...base, liveRow];
-    if (liveRow.epoch === last.epoch) {
-      const copy = base.slice();
-      copy[copy.length - 1] = { ...copy[copy.length - 1], ...liveRow };
-      return copy;
+    if (!liveBuffer.length) return base;
+    const out = base.slice();
+    for (const lr of liveBuffer){
+      const last = out[out.length - 1];
+      if (!last) { out.push(lr); continue; }
+      if (lr.epoch > last.epoch) out.push(lr);
+      else if (lr.epoch === last.epoch) out[out.length - 1] = { ...last, ...lr };
     }
-    return base;
-  }, [rows, liveRow]);
+    return out;
+  }, [rows, liveBuffer]);
 
   const [unit, setUnit] = useState<'AI3' | 'Shannons'>('AI3');
 
@@ -760,6 +793,7 @@ export default function Dashboard(){
     startBlock: r.startBlock,
     endBlock: r.endBlock,
     totalStake: String(r.totalStake ?? '0'),
+    storageFees: String(r.storageFees ?? '0'),
     operatorStakes: r.operatorStakes ?? {},
     rewards: r.rewards ?? {},
     operatorSharePrices: r.operatorSharePrices ?? {}
@@ -806,18 +840,27 @@ export default function Dashboard(){
         return (v - min) / (max - min);
       })()
     }));
+    let totalPlusFees: string = '0';
+    try {
+      const t = BigInt(String((last as any).totalStake ?? '0'));
+      const s = BigInt(String((last as any).storageFees ?? '0'));
+      totalPlusFees = (t + s).toString();
+    } catch { totalPlusFees = String((last as any).totalStake ?? '0'); }
+
     return {
       lastEpoch: last.epoch,
-      totalStake: unit === 'AI3' ? formatTokensIntegerFromShannons(last.totalStake) : formatAmount(last.totalStake, unit),
+      totalStake: unit === 'AI3' ? formatTokensIntegerFromShannons(totalPlusFees) : formatAmount(totalPlusFees, unit),
+      storageFees: unit === 'AI3' ? formatTokensIntegerFromShannons(String((last as any).storageFees ?? '0')) : formatAmount(String((last as any).storageFees ?? '0'), unit),
       operators,
       rewardsTotal: formatRewardsAmount(rewardsTotalBig.toString(), unit),
       latestSharePrices
     } as const;
   }, [mergedRows, unit]);
 
-  const [range, setRange] = useState<'50' | '200' | 'All'>('200');
   const [showOp0, setShowOp0] = useState(true);
   const [showOp1, setShowOp1] = useState(true);
+  const [showOp2, setShowOp2] = useState(true);
+  const [showOp3, setShowOp3] = useState(true);
   const [stakeScale, setStakeScale] = useState<'auto' | 'fit' | 'log'>('auto');
   const [rewardsScale, setRewardsScale] = useState<'auto' | 'fit' | 'log'>('log');
   const [shareScale, setShareScale] = useState<'auto' | 'fit' | 'log'>('auto');
@@ -827,6 +870,7 @@ export default function Dashboard(){
   const [isMobile, setIsMobile] = useState(false);
   const [fullscreenChart, setFullscreenChart] = useState<'stake' | 'rewards' | 'share' | null>(null);
   const [frozenChartData, setFrozenChartData] = useState<any[] | null>(null);
+  const [showTotals, setShowTotals] = useState(true);
 
   function openFullscreen(type: 'stake' | 'rewards' | 'share'){
     if (!frozenChartData) setFrozenChartData(chartData);
@@ -853,19 +897,22 @@ export default function Dashboard(){
   const COLORS = {
     total: '#111827',
     op0: '#60A5FA',
-    op1: '#F59E0B'
+    op1: '#F59E0B',
+    op2: '#10B981',
+    op3: '#EF4444'
   } as const;
 
   const displayRows = useMemo(() => {
-    if (range === 'All') return baseRows;
-    const n = range === '50' ? 50 : 200;
+    if (range === 'All') return allCache ?? baseRows;
+    const n = range === '50' ? 50 : range === '100' ? 100 : 200;
     return baseRows.slice(-n);
-  }, [baseRows, range]);
+  }, [baseRows, range, allCache]);
 
   const chartRows = useMemo(() => {
     const arr = displayRows;
-    if (range === 'All' && arr.length > 1000) {
-      const step = Math.ceil(arr.length / 1000);
+    if (range === 'All' && arr.length > 1200) {
+      const target = 1000;
+      const step = Math.ceil(arr.length / target);
       const sampled = arr.filter((_, i) => i % step === 0);
       if (sampled[sampled.length - 1] !== arr[arr.length - 1]) sampled.push(arr[arr.length - 1]);
       return sampled;
@@ -874,6 +921,10 @@ export default function Dashboard(){
   }, [displayRows, range]);
 
   const chartData = useMemo(() => {
+    let prevSP0: number | null = null;
+    let prevSP1: number | null = null;
+    let prevSP2: number | null = null;
+    let prevSP3: number | null = null;
     const base = chartRows.map((r: any) => {
       const rewardsVals = Object.values(r.rewards || {});
       let rewardsTotalNum = 0;
@@ -888,39 +939,64 @@ export default function Dashboard(){
       // Convert perquintill share prices (1e18 scale) to plain numbers for display
       const sp0Raw = r.operatorSharePrices?.['0'];
       const sp1Raw = r.operatorSharePrices?.['1'];
-      let sp0 = 0; let sp1 = 0;
-      try { sp0 = sp0Raw ? Number(tokensPlainFromShannons(sp0Raw, 18)) : 0; } catch { sp0 = 0; }
-      try { sp1 = sp1Raw ? Number(tokensPlainFromShannons(sp1Raw, 18)) : 0; } catch { sp1 = 0; }
+      const sp2Raw = r.operatorSharePrices?.['2'];
+      const sp3Raw = r.operatorSharePrices?.['3'];
+      let sp0 = prevSP0 ?? 1; let sp1 = prevSP1 ?? 1; let sp2 = prevSP2 ?? 1; let sp3 = prevSP3 ?? 1;
+      try { if (sp0Raw) sp0 = Number(tokensPlainFromShannons(sp0Raw, 18)); } catch {}
+      try { if (sp1Raw) sp1 = Number(tokensPlainFromShannons(sp1Raw, 18)); } catch {}
+      try { if (sp2Raw) sp2 = Number(tokensPlainFromShannons(sp2Raw, 18)); } catch {}
+      try { if (sp3Raw) sp3 = Number(tokensPlainFromShannons(sp3Raw, 18)); } catch {}
+      prevSP0 = sp0; prevSP1 = sp1; prevSP2 = sp2; prevSP3 = sp3;
 
       return {
         epoch: r.epoch,
-        totalStake: unit === 'AI3' ? tokensNumberFromShannons(r.totalStake) : Number(r.totalStake ?? '0'),
+        totalStake: unit === 'AI3' ? tokensNumberFromShannons((function(){ try { return (BigInt(r.totalStake||'0') + BigInt(r.storageFees||'0')).toString(); } catch { return String(r.totalStake||'0'); } })()) : Number(r.totalStake ?? '0'),
         stake0: unit === 'AI3' ? tokensNumberFromShannons(r.operatorStakes?.['0'] ?? '0') : Number(r.operatorStakes?.['0'] ?? '0'),
         stake1: unit === 'AI3' ? tokensNumberFromShannons(r.operatorStakes?.['1'] ?? '0') : Number(r.operatorStakes?.['1'] ?? '0'),
+        stake2: unit === 'AI3' ? tokensNumberFromShannons(r.operatorStakes?.['2'] ?? '0') : Number(r.operatorStakes?.['2'] ?? '0'),
+        stake3: unit === 'AI3' ? tokensNumberFromShannons(r.operatorStakes?.['3'] ?? '0') : Number(r.operatorStakes?.['3'] ?? '0'),
         rewards0: unit === 'AI3' ? tokensNumberFromShannons(r.rewards?.['0'] ?? '0') : Number(r.rewards?.['0'] ?? '0'),
         rewards1: unit === 'AI3' ? tokensNumberFromShannons(r.rewards?.['1'] ?? '0') : Number(r.rewards?.['1'] ?? '0'),
+        rewards2: unit === 'AI3' ? tokensNumberFromShannons(r.rewards?.['2'] ?? '0') : Number(r.rewards?.['2'] ?? '0'),
+        rewards3: unit === 'AI3' ? tokensNumberFromShannons(r.rewards?.['3'] ?? '0') : Number(r.rewards?.['3'] ?? '0'),
         rewardsTotal: rewardsTotalNum,
-        share0: sp0 || 1,
-        share1: sp1 || 1
+        share0: sp0 || (prevSP0 ?? 1) || 1,
+        share1: sp1 || (prevSP1 ?? 1) || 1,
+        share2: sp2 || (prevSP2 ?? 1) || 1,
+        share3: sp3 || (prevSP3 ?? 1) || 1
       };
     });
     // derive deltas (bps) and indexed series
     let first0: number | null = null;
     let first1: number | null = null;
+    let first2: number | null = null;
+    let first3: number | null = null;
     let prev0: number | null = null;
     let prev1: number | null = null;
+    let prev2: number | null = null;
+    let prev3: number | null = null;
     for (let i = 0; i < base.length; i++){
       const row: any = base[i];
       if (first0 == null && row.share0) first0 = row.share0;
       if (first1 == null && row.share1) first1 = row.share1;
+      if (first2 == null && row.share2) first2 = row.share2;
+      if (first3 == null && row.share3) first3 = row.share3;
       const d0 = prev0 && prev0 !== 0 ? ((row.share0 - prev0) / prev0) * 10000 : 0;
       const d1 = prev1 && prev1 !== 0 ? ((row.share1 - prev1) / prev1) * 10000 : 0;
+      const d2 = prev2 && prev2 !== 0 ? ((row.share2 - prev2) / prev2) * 10000 : 0;
+      const d3 = prev3 && prev3 !== 0 ? ((row.share3 - prev3) / prev3) * 10000 : 0;
       row.share0Bps = Number.isFinite(d0) ? d0 : 0;
       row.share1Bps = Number.isFinite(d1) ? d1 : 0;
+      row.share2Bps = Number.isFinite(d2) ? d2 : 0;
+      row.share3Bps = Number.isFinite(d3) ? d3 : 0;
       row.share0Index = first0 && first0 !== 0 ? row.share0 / first0 : 1;
       row.share1Index = first1 && first1 !== 0 ? row.share1 / first1 : 1;
+      row.share2Index = first2 && first2 !== 0 ? row.share2 / first2 : 1;
+      row.share3Index = first3 && first3 !== 0 ? row.share3 / first3 : 1;
       prev0 = row.share0;
       prev1 = row.share1;
+      prev2 = row.share2;
+      prev3 = row.share3;
     }
     return base;
   }, [chartRows, unit]);
@@ -956,25 +1032,27 @@ export default function Dashboard(){
 
   const stakeYDomain = useMemo(() => computeYDomain(
     chartData,
-    ['totalStake', ...(showOp0 ? ['stake0'] : []), ...(showOp1 ? ['stake1'] : [])],
+    [ ...(showTotals ? ['totalStake'] : []), ...(showOp0 ? ['stake0'] : []), ...(showOp1 ? ['stake1'] : []), ...(showOp2 ? ['stake2'] : []), ...(showOp3 ? ['stake3'] : [])],
     stakeScale
-  ), [chartData, showOp0, showOp1, stakeScale]);
+  ), [chartData, showOp0, showOp1, showOp2, showOp3, showTotals, stakeScale]);
 
-  const rewardsYDomain = useMemo(() => computeYDomain(
-    chartData,
-    ['rewardsTotal', ...(showOp0 ? ['rewards0'] : []), ...(showOp1 ? ['rewards1'] : [])],
-    rewardsScale
-  ), [chartData, showOp0, showOp1, rewardsScale]);
+  const rewardsYDomain = useMemo(() => {
+    const keys = [ ...(showTotals ? ['rewardsTotal'] : []), ...(showOp0 ? ['rewards0'] : []), ...(showOp1 ? ['rewards1'] : []), ...(showOp2 ? ['rewards2'] : []), ...(showOp3 ? ['rewards3'] : [])];
+    const hasPos = chartData.some((row:any)=> keys.some(k => Number((row as any)[k] ?? 0) > 0));
+    const mode = rewardsScale === 'log' && !hasPos ? 'fit' : rewardsScale;
+    return computeYDomain(chartData, keys, mode);
+  }, [chartData, showOp0, showOp1, showOp2, showOp3, showTotals, rewardsScale]);
 
   const shareYDomain = useMemo(() => {
     const keys = shareView === 'delta'
-      ? [ ...(showOp0 ? ['share0Bps'] : []), ...(showOp1 ? ['share1Bps'] : []) ]
+      ? [ ...(showOp0 ? ['share0Bps'] : []), ...(showOp1 ? ['share1Bps'] : []), ...(showOp2 ? ['share2Bps'] : []), ...(showOp3 ? ['share3Bps'] : []) ]
       : shareView === 'index'
-        ? [ ...(showOp0 ? ['share0Index'] : []), ...(showOp1 ? ['share1Index'] : []) ]
-        : [ ...(showOp0 ? ['share0'] : []), ...(showOp1 ? ['share1'] : []) ];
-    const mode = shareView === 'delta' && shareScale === 'log' ? 'fit' : shareScale;
+        ? [ ...(showOp0 ? ['share0Index'] : []), ...(showOp1 ? ['share1Index'] : []), ...(showOp2 ? ['share2Index'] : []), ...(showOp3 ? ['share3Index'] : []) ]
+        : [ ...(showOp0 ? ['share0'] : []), ...(showOp1 ? ['share1'] : []), ...(showOp2 ? ['share2'] : []), ...(showOp3 ? ['share3'] : []) ];
+    // For 'abs' view, auto-scale can look flat (values near 1.0). Force 'fit' unless user explicitly selects log.
+    const mode = (shareView === 'abs' && shareScale === 'auto') ? 'fit' : (shareView === 'delta' && shareScale === 'log' ? 'fit' : shareScale);
     return computeYDomain(chartData, keys, mode);
-  }, [chartData, showOp0, showOp1, shareScale, shareView]);
+  }, [chartData, showOp0, showOp1, showOp2, showOp3, shareScale, shareView]);
 
   const sharedBrushProps: any = brush ? { startIndex: brush.startIndex, endIndex: brush.endIndex } : {};
   function handleBrushChange(range: any){
@@ -995,25 +1073,26 @@ export default function Dashboard(){
 
     const stakeYDomainFS = useMemo(() => computeYDomain(
       dataForChart,
-      ['totalStake', ...(showOp0 ? ['stake0'] : []), ...(showOp1 ? ['stake1'] : [])],
+      [ ...(showTotals ? ['totalStake'] : []), ...(showOp0 ? ['stake0'] : []), ...(showOp1 ? ['stake1'] : []), ...(showOp2 ? ['stake2'] : []), ...(showOp3 ? ['stake3'] : [])],
       stakeScale
-    ), [dataForChart, showOp0, showOp1, stakeScale]);
+    ), [dataForChart, showOp0, showOp1, showOp2, showOp3, showTotals, stakeScale]);
 
-    const rewardsYDomainFS = useMemo(() => computeYDomain(
-      dataForChart,
-      ['rewardsTotal', ...(showOp0 ? ['rewards0'] : []), ...(showOp1 ? ['rewards1'] : [])],
-      rewardsScale
-    ), [dataForChart, showOp0, showOp1, rewardsScale]);
+    const rewardsYDomainFS = useMemo(() => {
+      const keys = [ ...(showTotals ? ['rewardsTotal'] : []), ...(showOp0 ? ['rewards0'] : []), ...(showOp1 ? ['rewards1'] : []), ...(showOp2 ? ['rewards2'] : []), ...(showOp3 ? ['rewards3'] : [])];
+      const hasPos = (dataForChart as any[]).some((row:any)=> keys.some(k => Number((row as any)[k] ?? 0) > 0));
+      const mode = rewardsScale === 'log' && !hasPos ? 'fit' : rewardsScale;
+      return computeYDomain(dataForChart, keys, mode);
+    }, [dataForChart, showOp0, showOp1, showOp2, showOp3, showTotals, rewardsScale]);
 
     const shareYDomainFS = useMemo(() => {
       const keys = shareView === 'delta'
-        ? [ ...(showOp0 ? ['share0Bps'] : []), ...(showOp1 ? ['share1Bps'] : []) ]
+        ? [ ...(showOp0 ? ['share0Bps'] : []), ...(showOp1 ? ['share1Bps'] : []), ...(showOp2 ? ['share2Bps'] : []), ...(showOp3 ? ['share3Bps'] : []) ]
         : shareView === 'index'
-          ? [ ...(showOp0 ? ['share0Index'] : []), ...(showOp1 ? ['share1Index'] : []) ]
-          : [ ...(showOp0 ? ['share0'] : []), ...(showOp1 ? ['share1'] : []) ];
+          ? [ ...(showOp0 ? ['share0Index'] : []), ...(showOp1 ? ['share1Index'] : []), ...(showOp2 ? ['share2Index'] : []), ...(showOp3 ? ['share3Index'] : []) ]
+          : [ ...(showOp0 ? ['share0'] : []), ...(showOp1 ? ['share1'] : []), ...(showOp2 ? ['share2'] : []), ...(showOp3 ? ['share3'] : []) ];
       const mode = shareView === 'delta' && shareScale === 'log' ? 'fit' : shareScale;
       return computeYDomain(dataForChart, keys, mode);
-    }, [dataForChart, showOp0, showOp1, shareScale, shareView]);
+    }, [dataForChart, showOp0, showOp1, showOp2, showOp3, shareScale, shareView]);
     
     return (
       <div style={{
@@ -1085,9 +1164,11 @@ export default function Dashboard(){
                     <XAxis dataKey="epoch" tick={{ fontSize: 12 }} />
                     <YAxis tickFormatter={(v)=>formatYAxisTick(Number(v), unit)} tick={{ fontSize: 12 }} domain={stakeYDomainFS} scale={stakeScale === 'log' ? 'log' : 'auto'} allowDataOverflow />
                     <Tooltip formatter={(v)=>`${formatTooltipNumber(Number(v), unit, 'stake')} ${unit}`} labelFormatter={(l)=>`Epoch ${l}`} />
-                    <Line type="monotone" dataKey="totalStake" dot={false} name="Total Stake" strokeWidth={3} stroke={COLORS.total} />
+                    {showTotals && <Line type="monotone" dataKey="totalStake" dot={false} name="Total Stake" strokeWidth={2} stroke={COLORS.total} />}
                     {showOp0 && <Line type="monotone" dataKey="stake0" dot={false} name="Operator 0 Stake" stroke={COLORS.op0} strokeDasharray="6 3" strokeWidth={2} />}
                     {showOp1 && <Line type="monotone" dataKey="stake1" dot={false} name="Operator 1 Stake" stroke={COLORS.op1} strokeDasharray="6 3" strokeWidth={2} />}
+                    {showOp2 && <Line type="monotone" dataKey="stake2" dot={false} name="Operator 2 Stake" stroke={COLORS.op2} strokeDasharray="6 3" strokeWidth={2} />}
+                    {showOp3 && <Line type="monotone" dataKey="stake3" dot={false} name="Operator 3 Stake" stroke={COLORS.op3} strokeDasharray="6 3" strokeWidth={2} />}
                   </LineChart>
                 ) : type === 'rewards' ? (
                   <ComposedChart data={dataForChart} margin={{ top: 20, right: 40, left: 20, bottom: 40 }}>
@@ -1097,7 +1178,9 @@ export default function Dashboard(){
                     <Tooltip formatter={(v)=>`${formatTooltipNumber(Number(v), unit, 'rewards')} ${unit}`} labelFormatter={(l)=>`Epoch ${l}`} />
                     {showOp0 && <Bar dataKey="rewards0" name="Operator 0" fill={COLORS.op0} radius={[3,3,0,0]} />}
                     {showOp1 && <Bar dataKey="rewards1" name="Operator 1" fill={COLORS.op1} radius={[3,3,0,0]} />}
-                    <Line type="monotone" dataKey="rewardsTotal" name="Total Rewards" dot={false} stroke={COLORS.total} strokeWidth={3} connectNulls />
+                    {showOp2 && <Bar dataKey="rewards2" name="Operator 2" fill={COLORS.op2} radius={[3,3,0,0]} />}
+                    {showOp3 && <Bar dataKey="rewards3" name="Operator 3" fill={COLORS.op3} radius={[3,3,0,0]} />}
+                    {showTotals && <Line type="monotone" dataKey="rewardsTotal" name="Total Rewards" dot={false} stroke={COLORS.total} strokeWidth={3} connectNulls />}
                   </ComposedChart>
                 ) : (
                   <LineChart data={dataForChart} margin={{ top: 20, right: 40, left: 20, bottom: 40 }}>
@@ -1115,6 +1198,8 @@ export default function Dashboard(){
                     }} labelFormatter={(l)=>`Epoch ${l}`} />
                     {showOp0 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share0Bps' : (shareView === 'index' ? 'share0Index' : 'share0')} dot={false} name="Operator 0" stroke={COLORS.op0} strokeWidth={2} />}
                     {showOp1 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share1Bps' : (shareView === 'index' ? 'share1Index' : 'share1')} dot={false} name="Operator 1" stroke={COLORS.op1} strokeWidth={2} />}
+                    {showOp2 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share2Bps' : (shareView === 'index' ? 'share2Index' : 'share2')} dot={false} name="Operator 2" stroke={COLORS.op2} strokeWidth={2} />}
+                    {showOp3 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share3Bps' : (shareView === 'index' ? 'share3Index' : 'share3')} dot={false} name="Operator 3" stroke={COLORS.op3} strokeWidth={2} />}
                   </LineChart>
                 )}
               </ResponsiveContainer>
@@ -1165,7 +1250,7 @@ export default function Dashboard(){
         </div>
         {Array.isArray((summary as any).latestSharePrices) && (summary as any).latestSharePrices.length > 0 && (
           <div>
-            <OperatorTable rows={displayRows} latest={summary as any} isMobile={isMobile} showOp0={showOp0} showOp1={showOp1} setShowOp0={setShowOp0} setShowOp1={setShowOp1} />
+            <OperatorTable rows={displayRows} latest={summary as any} isMobile={isMobile} />
           </div>
         )}
       </div>
@@ -1191,7 +1276,7 @@ export default function Dashboard(){
           
           <div style={{ fontSize: microFont, color: '#6b7280' }}>Range:</div>
           <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-            {(['50','200','All'] as const).map(key => (
+            {(['50','100','200','All'] as const).map(key => (
               <button
                 key={key}
                 onClick={() => setRange(key)}
@@ -1250,6 +1335,40 @@ export default function Dashboard(){
               >{key}</button>
             ))}
           </div>
+          <div style={{ width: '1px', height: '16px', background: '#d1d5db', margin: '0 4px' }} />
+          <div style={{ fontSize: microFont, color: '#6b7280' }}>Totals:</div>
+          <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            {[true, false].map(val => (
+              <button
+                key={String(val)}
+                onClick={() => setShowTotals(val)}
+                style={{
+                  padding: segPad,
+                  fontSize: microFont,
+                  background: showTotals === val ? '#111827' : 'white',
+                  color: showTotals === val ? 'white' : '#111827',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease-in-out',
+                  fontWeight: showTotals === val ? 600 : 500
+                }}
+              >{val ? 'On' : 'Off'}</button>
+            ))}
+          </div>
+
+          <div style={{ width: '1px', height: '16px', background: '#d1d5db', margin: '0 4px' }} />
+          <div style={{ fontSize: microFont, color: '#6b7280' }}>Operators:</div>
+          <div style={{ display: 'inline-flex', gap: 6 }}>
+            {[{id:'0',color:COLORS.op0,state:showOp0,set:setShowOp0,label:'Op 0'}, {id:'1',color:COLORS.op1,state:showOp1,set:setShowOp1,label:'Op 1'}, {id:'2',color:COLORS.op2,state:showOp2,set:setShowOp2,label:'Op 2'}, {id:'3',color:COLORS.op3,state:showOp3,set:setShowOp3,label:'Op 3'}].map(op => (
+              <label key={op.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 6, background: op.state ? '#f8fafc' : 'white', border: `1px solid ${op.state ? op.color : '#e2e8f0'}`, color: op.state ? op.color : '#64748b', cursor: 'pointer' }}>
+                <input type="checkbox" checked={op.state} onChange={(e)=>op.set(e.target.checked)} style={{ display: 'none' }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: op.color }} />
+                <span style={{ fontSize: microFont }}>{op.label}</span>
+              </label>
+            ))}
+          </div>
+
+          
         </div>
         <div style={{ 
           background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)', 
@@ -1312,9 +1431,11 @@ export default function Dashboard(){
                 <XAxis dataKey="epoch" tick={{ fontSize: microFont }} />
                 <YAxis tickFormatter={(v)=>formatYAxisTick(Number(v), unit)} tick={{ fontSize: microFont }} domain={stakeYDomain} scale={stakeScale === 'log' ? 'log' : 'auto'} allowDataOverflow />
                 <Tooltip formatter={(v)=>`${formatTooltipNumber(Number(v), unit, 'stake')} ${unit}`} labelFormatter={(l)=>`Epoch ${l}`} />
-                <Line type="monotone" dataKey="totalStake" dot={false} name="Total Stake" strokeWidth={2} stroke={COLORS.total} />
+                {showTotals && <Line type="monotone" dataKey="totalStake" dot={false} name="Total Stake" strokeWidth={2} stroke={COLORS.total} />}
                 {showOp0 && <Line type="monotone" dataKey="stake0" dot={false} name="Operator 0 Stake" stroke={COLORS.op0} strokeDasharray="4 2" />}
                 {showOp1 && <Line type="monotone" dataKey="stake1" dot={false} name="Operator 1 Stake" stroke={COLORS.op1} strokeDasharray="4 2" />}
+                {showOp2 && <Line type="monotone" dataKey="stake2" dot={false} name="Operator 2 Stake" stroke={COLORS.op2} strokeDasharray="4 2" />}
+                {showOp3 && <Line type="monotone" dataKey="stake3" dot={false} name="Operator 3 Stake" stroke={COLORS.op3} strokeDasharray="4 2" />}
                 <Brush dataKey="epoch" height={isMobile ? 12 : 14} stroke="#9CA3AF" travellerWidth={isMobile ? 6 : 8} onChange={handleBrushChange} {...sharedBrushProps} />
               </LineChart>
             </ResponsiveContainer>
@@ -1401,11 +1522,13 @@ export default function Dashboard(){
               <ComposedChart data={chartData} margin={{ top: 10, right: 24, left: 8, bottom: 24 }} syncId="epochs" syncMethod="index">
                 <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" />
                 <XAxis dataKey="epoch" tick={{ fontSize: microFont }} />
-                <YAxis tickFormatter={(v)=>formatYAxisTick(Number(v), unit)} tick={{ fontSize: microFont }} domain={rewardsYDomain} scale={rewardsScale === 'log' ? 'log' : 'auto'} allowDataOverflow />
+                <YAxis tickFormatter={(v)=>formatYAxisTick(Number(v), unit)} tick={{ fontSize: microFont }} domain={rewardsYDomain} scale={rewardsScale === 'log' && chartData.some((row:any)=> ['rewardsTotal','rewards0','rewards1','rewards2','rewards3'].some(k => Number((row as any)[k] ?? 0) > 0)) ? 'log' : 'auto'} allowDataOverflow />
                 <Tooltip formatter={(v)=>`${formatTooltipNumber(Number(v), unit, 'rewards')} ${unit}`} labelFormatter={(l)=>`Epoch ${l}`} />
                 {showOp0 && <Bar dataKey="rewards0" name="Operator 0" fill={COLORS.op0} radius={[2,2,0,0]} />}
                 {showOp1 && <Bar dataKey="rewards1" name="Operator 1" fill={COLORS.op1} radius={[2,2,0,0]} />}
-                <Line type="monotone" dataKey="rewardsTotal" name="Total Rewards" dot={false} stroke={COLORS.total} strokeWidth={2} connectNulls />
+                {showOp2 && <Bar dataKey="rewards2" name="Operator 2" fill={COLORS.op2} radius={[2,2,0,0]} />}
+                {showOp3 && <Bar dataKey="rewards3" name="Operator 3" fill={COLORS.op3} radius={[2,2,0,0]} />}
+                {showTotals && <Line type="monotone" dataKey="rewardsTotal" name="Total Rewards" dot={false} stroke={COLORS.total} strokeWidth={2} connectNulls />}
                 <Brush dataKey="epoch" height={isMobile ? 12 : 14} stroke="#9CA3AF" travellerWidth={isMobile ? 6 : 8} onChange={handleBrushChange} {...sharedBrushProps} />
               </ComposedChart>
             </ResponsiveContainer>
@@ -1493,16 +1616,18 @@ export default function Dashboard(){
                 <XAxis dataKey="epoch" tick={{ fontSize: microFont }} />
                 <YAxis tickFormatter={(v)=> {
                   if (shareView === 'delta') return `${Number(v).toFixed(1)} bps`;
-                  if (shareView === 'index') return Number(v).toExponential(2);
-                  return Number(v).toExponential(2);
+                  if (shareView === 'index') return Number(v).toFixed(6);
+                  return Number(v).toFixed(6);
                 }} tick={{ fontSize: microFont }} domain={shareYDomain} scale={shareScale === 'log' ? 'log' : 'auto'} allowDataOverflow />
                 <Tooltip formatter={(v)=> {
                   if (shareView === 'delta') return `${Number(v).toFixed(2)} bps`;
-                  if (shareView === 'index') return `${Number(v).toExponential(6)}×`;
-                  return Number(v).toExponential(8);
+                  if (shareView === 'index') return `${Number(v).toFixed(8)}×`;
+                  return Number(v).toFixed(8);
                 }} labelFormatter={(l)=>`Epoch ${l}`} />
                 {showOp0 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share0Bps' : (shareView === 'index' ? 'share0Index' : 'share0')} dot={false} name="Operator 0" stroke={COLORS.op0} />}
                 {showOp1 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share1Bps' : (shareView === 'index' ? 'share1Index' : 'share1')} dot={false} name="Operator 1" stroke={COLORS.op1} />}
+                {showOp2 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share2Bps' : (shareView === 'index' ? 'share2Index' : 'share2')} dot={false} name="Operator 2" stroke={COLORS.op2} />}
+                {showOp3 && <Line type="monotone" dataKey={shareView === 'delta' ? 'share3Bps' : (shareView === 'index' ? 'share3Index' : 'share3')} dot={false} name="Operator 3" stroke={COLORS.op3} />}
                 <Brush dataKey="epoch" height={isMobile ? 12 : 14} stroke="#9CA3AF" travellerWidth={isMobile ? 6 : 8} onChange={handleBrushChange} {...sharedBrushProps} />
               </LineChart>
             </ResponsiveContainer>
