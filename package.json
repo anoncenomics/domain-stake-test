@@ -41,6 +41,7 @@
     "@autonomys/auto-drive": "^1.5.14",
     "@autonomys/auto-utils": "^1.5.14",
     "@polkadot/api": "^16.4.5",
+    "@supabase/supabase-js": "^2.57.0",
     "@vercel/analytics": "^1.5.0",
     "next": "^14.2.5",
     "pg": "^8.16.3",

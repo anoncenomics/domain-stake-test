@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sudo service:*)",
+      "Bash(pg_isready:*)",
+      "Bash(psql:*)",
+      "Bash(sudo:*)"
+    ],
+    "deny": []
+  }
+}
