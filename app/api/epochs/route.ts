@@ -122,7 +122,7 @@ export async function GET(){
     };
   });
 
-  return new Response(JSON.stringify(mapped), { headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(mapped), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store, max-age=0, must-revalidate' } });
 }
 
 
