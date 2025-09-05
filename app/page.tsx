@@ -4,7 +4,12 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 
 function useEpochs(){
   const [data, setData] = useState<any[]>([]);
-  useEffect(() => { fetch('/data/epochs.json').then(r=>r.json()).then(setData).catch(()=>setData([])); }, []);
+  useEffect(() => {
+    fetch('/api/epochs')
+      .then(r => r.json())
+      .then((rows) => Array.isArray(rows) ? setData(rows) : setData([]))
+      .catch(()=>setData([]));
+  }, []);
   return data;
 }
 
