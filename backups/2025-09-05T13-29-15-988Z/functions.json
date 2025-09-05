@@ -1,0 +1,22 @@
+[
+  {
+    "routine_name": "get_financial_trends",
+    "routine_type": "FUNCTION",
+    "data_type": "record"
+  },
+  {
+    "routine_name": "parse_comma_number",
+    "routine_type": "FUNCTION",
+    "data_type": "numeric"
+  },
+  {
+    "routine_name": "get_latest_network_stats",
+    "routine_type": "FUNCTION",
+    "data_type": "record"
+  },
+  {
+    "routine_name": "hex_to_numeric",
+    "routine_type": "FUNCTION",
+    "data_type": "numeric"
+  }
+]

@@ -65,6 +65,22 @@ export async function GET(req: Request){
     }
   } catch {}
 
+  // Health endpoint: /api/epochs?health=1 returns availability metrics quickly
+  try {
+    const u = new URL(req.url);
+    if (u.searchParams.get('health') === '1'){
+      const supa = createClient(url, key, { auth: { persistSession: false } });
+      const { data, error } = await supa
+        .from('comprehensive_analytics')
+        .select('epoch,operator_0_rewards_tokens,operator_1_rewards_tokens,operator_2_rewards_tokens,operator_3_rewards_tokens')
+        .order('epoch', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const rewardsAvailable = (data||[]).filter(r => Number(r.operator_0_rewards_tokens||0)+Number(r.operator_1_rewards_tokens||0)+Number(r.operator_2_rewards_tokens||0)+Number(r.operator_3_rewards_tokens||0) > 0).length;
+      return new Response(JSON.stringify({ sample: (data||[]).length, rewardsAvailable }), { headers: { 'content-type': 'application/json' } });
+    }
+  } catch {}
+
   // Pull rows from comprehensive_analytics (removed non-existent operator_X_shares_raw and operator_X_share_price_tokens columns)
   const selectCols = 'epoch,end_block,timestamp,total_stake_raw,total_stake_tokens,total_shares_raw,storage_fee_fund_tokens,network_share_price_ratio,operator_count,operator_0_stake_tokens,operator_1_stake_tokens,operator_2_stake_tokens,operator_3_stake_tokens,operator_0_rewards_tokens,operator_1_rewards_tokens,operator_2_rewards_tokens,operator_3_rewards_tokens';
   const all: any[] = [];
@@ -297,7 +313,8 @@ export async function GET(req: Request){
     operatorShares: Record<string, string>;
     operatorSharePrices: Record<string, string>;
   }> = {};
-  if (all.length){
+  const shouldExtractEpochData = all.length > 0 && !sampleSize && (!limit || limit <= 300);
+  if (shouldExtractEpochData){
     const minEpoch = Number(all[0].epoch);
     const maxEpoch = Number(all[all.length - 1].epoch);
     epochDataMap = await loadOperatorEpochData(minEpoch, maxEpoch);
@@ -363,7 +380,14 @@ export async function GET(req: Request){
       }
     }
 
-    return {
+    // Ensure stable keys 0..3 always exist
+    for (let i = 0; i < 4; i++){
+      const id = String(i);
+      if (!(id in rewards)) rewards[id] = '0';
+      if (!(id in sharePrices)) sharePrices[id] = (BigInt(1) * (10n ** 18n)).toString();
+    }
+
+    const row = {
       domainId: 0,
       epoch: r.epoch,
       endBlock: r.end_block,
@@ -379,13 +403,20 @@ export async function GET(req: Request){
       rewards: rewards,
       operatorSharePrices: sharePrices,
       operators: r.operator_count,
+      meta: {
+        rewardsHasAny: Object.values(rewards).some(v => v !== '0'),
+        sharePricesHasAny: Object.values(sharePrices).some(v => v !== '0'),
+        sampleApplied: Boolean(sampleSize),
+        extractionApplied: Boolean(shouldExtractEpochData)
+      },
       debug: {
         sharesRaw,
         totalSharesRaw: (r as any).total_shares_raw ?? null,
         networkRatioRaw,
         preSharePriceTokens
       }
-    };
+    } as any;
+    return row;
   });
 
   return new Response(JSON.stringify(mapped), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store, max-age=0, must-revalidate' } });

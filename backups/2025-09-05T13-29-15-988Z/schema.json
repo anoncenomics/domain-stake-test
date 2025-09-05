@@ -1,0 +1,44 @@
+[
+  {
+    "table_name": "epochs",
+    "column_name": "epoch",
+    "data_type": "bigint",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "epochs",
+    "column_name": "end_block",
+    "data_type": "bigint",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "epochs",
+    "column_name": "end_hash",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "epochs",
+    "column_name": "timestamp",
+    "data_type": "bigint",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "epochs",
+    "column_name": "data",
+    "data_type": "jsonb",
+    "is_nullable": "NO",
+    "column_default": null
+  },
+  {
+    "table_name": "epochs",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()"
+  }
+]

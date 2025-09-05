@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-09-05T13:29:16.632Z",
+  "database": {
+    "host": "aws-1-us-east-1.pooler.supabase.com",
+    "port": 6543,
+    "database": "postgres",
+    "user": "postgres.kaxlpwjlesmlfiawsfvy"
+  },
+  "tables": [
+    {
+      "table_name": "epochs",
+      "row_count": "3734",
+      "size": "325 MB"
+    },
+    {
+      "table_name": "comprehensive_analytics",
+      "row_count": "3734",
+      "size": "1208 kB"
+    }
+  ],
+  "backup_type": "metadata_and_samples",
+  "note": "Pre-migration backup for operator share price normalization"
+}

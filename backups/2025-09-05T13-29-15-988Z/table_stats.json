@@ -1,0 +1,12 @@
+[
+  {
+    "table_name": "epochs",
+    "row_count": "3734",
+    "size": "325 MB"
+  },
+  {
+    "table_name": "comprehensive_analytics",
+    "row_count": "3734",
+    "size": "1208 kB"
+  }
+]
