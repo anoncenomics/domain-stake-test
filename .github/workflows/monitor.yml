@@ -1,0 +1,43 @@
+name: Monitor and Update Supabase
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: monitor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run monitor once
+        env:
+          # RPC configuration (override as needed)
+          RPC_URL_WS: ${{ secrets.RPC_URL_WS }}
+          RPC_USER: ${{ secrets.RPC_USER }}
+          RPC_PASS: ${{ secrets.RPC_PASS }}
+          # Supabase/Postgres
+          PG_HOST: ${{ secrets.SUPABASE_PG_HOST }}
+          PG_PORT: ${{ secrets.SUPABASE_PG_PORT || 6543 }}
+          PG_NAME: ${{ secrets.SUPABASE_PG_NAME || 'postgres' }}
+          PG_USER: ${{ secrets.SUPABASE_PG_USER }}
+          PG_PASS: ${{ secrets.SUPABASE_PG_PASS }}
+        run: |
+          node scripts/monitor-once.mjs --domain 0 --concurrency 8 --batch-size 25
+
+
