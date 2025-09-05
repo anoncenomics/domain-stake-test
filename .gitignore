@@ -32,6 +32,7 @@ supabase_import_chunks/
 # Large JSON/CSV files
 public/data/*.json
 public/data/*.csv
+public/data/*.db
 public/data/backups/
 
 # Vercel

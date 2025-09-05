@@ -1,0 +1,21 @@
+{
+  "archived": [
+    "backfill-comprehensive-metrics-postgres.mjs",
+    "backfill-comprehensive-metrics.mjs",
+    "backfill-epochs-with-storage-fees.mjs",
+    "backfill-epochs.mjs",
+    "backfill-storage-fee-deposits.mjs",
+    "optimized-backfill.mjs",
+    "profile-bottlenecks.mjs",
+    "live-operator-transfers.mjs",
+    "scan-operator-transfers.mjs",
+    "list-domain-events.mjs",
+    "local-backfill-epochs-with-storage-fees.mjs",
+    "migrate-database.mjs",
+    "migrate-sqlite-to-postgres.mjs",
+    "setup-postgres.mjs",
+    "test-operator-queries.mjs",
+    "test-storage-fee-deposits.mjs"
+  ],
+  "note": "These scripts were archived during cleanup to reduce redundancy."
+}

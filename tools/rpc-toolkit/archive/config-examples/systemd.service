@@ -1,0 +1,18 @@
+[Unit]
+Description=Autonomys RPC Client
+After=network.target
+
+[Service]
+Type=simple
+User=rpc-client
+Group=rpc-client
+WorkingDirectory=/opt/autonomys-rpc-toolkit
+Environment=RPC_URL=https://rpc.anoncenomics.com
+Environment=RPC_USER=your_username
+Environment=RPC_PASS=your_password
+ExecStart=/usr/bin/node node_polkadot_example.mjs
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
